@@ -116,6 +116,12 @@ async function run() {
         const result=await menuCollection.find().toArray();
         res.send(result);
     })
+    // Add a new menu item
+    app.post('/menu',vferiyToken,verifyAdmin, async(req,res)=>{
+        const item=req.body;
+        const result=await menuCollection.insertOne(item);
+        res.send(result);
+    })
     app.get('/reviews', async(req,res)=>{
         const result=await reviewsCollection.find().toArray();
         res.send(result);
