@@ -2,8 +2,8 @@ const express =require('express')
 const app=express();
 require('dotenv').config();
 const cors = require('cors');
-const jwt =require('jsonwebtoken');
 const port = process.env.PORT || 5000;
+const jwt =require('jsonwebtoken');
 
 //middleware 
 app.use(cors())
@@ -29,6 +29,8 @@ async function run() {
     const reviewsCollection = client.db('bistroDb').collection('reviews')
     const usersCollection = client.db('bistroDb').collection('users')
     const cartsCollection = client.db('bistroDb').collection('carts')
+    // Users related APIs 
+
     //jwt related Api
     app.post('/jwt', (req, res) => {
       const user = req.body;
@@ -37,7 +39,6 @@ async function run() {
     })
     // Middleware to verify JWT token
     const vferiyToken = (req, res, next) => {
-      console.log(req.headers)
       if (!req.headers.authorization) {
         return res.status(401).send({ error: true, message: 'unauthorized access' });
       }
@@ -49,7 +50,6 @@ async function run() {
         req.decoded = decoded; // Store the decoded token in the request object
         next(); // Call the next middleware or route handler
       });
-      //next();
     }
     //admin verification middleware
     const verifyAdmin = async (req, res, next) => {
@@ -61,9 +61,8 @@ async function run() {
       }
       next();
     }
-    // Users related APIs 
 
-     app.get('/users',vferiyToken,verifyAdmin, async(req, res) => {
+    app.get('/users',vferiyToken,verifyAdmin, async(req, res) => {
       console.log(req.headers)
       const result = await usersCollection.find().toArray();
       res.send(result);
@@ -110,18 +109,53 @@ async function run() {
       const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
-
+    
+    app.post('/menu',vferiyToken,verifyAdmin, async(req,res)=>{
+        const item=req.body;
+        if (item._id) delete item._id;
+        const result=await menuCollection.insertOne(item);
+        res.send(result);
+    })
     // Existing endpoints
     app.get('/menu', async(req,res)=>{
         const result=await menuCollection.find().toArray();
         res.send(result);
     })
-    // Add a new menu item
-    app.post('/menu',vferiyToken,verifyAdmin, async(req,res)=>{
-        const item=req.body;
-        const result=await menuCollection.insertOne(item);
+    // Get a single menu item by ID
+    app.get('/menu/:id', async(req,res)=>{
+        const id=req.params.id;
+        const query={_id: new ObjectId(id)};
+        const result=await menuCollection.findOne(query);
         res.send(result);
     })
+    // Add a new menu item
+  
+    //add delete menu item
+    app.delete('/menu/:id',vferiyToken,verifyAdmin, async(req,res)=>{
+        const id=req.params.id;
+        const query={_id: new ObjectId(id)};
+        const result=await menuCollection.deleteOne(query);
+        res.send(result);
+    })
+    //update menu item
+    app.patch('/menu/:id',vferiyToken,verifyAdmin, async(req,res)=>{
+        const id=req.params.id;
+        const item=req.body;
+        const filter={_id: new ObjectId(id)};
+        const updateDoc={
+            $set:{
+                name:item.name,
+                price:item.price,
+                image:item.image,
+                category:item.category,
+                recipe:item.recipe
+                 
+            }
+        }
+        const result=await menuCollection.updateOne(filter,updateDoc);
+        res.send(result);
+    })
+    //reviews related api
     app.get('/reviews', async(req,res)=>{
         const result=await reviewsCollection.find().toArray();
         res.send(result);
