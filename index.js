@@ -4,7 +4,7 @@ require('dotenv').config();
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 const jwt =require('jsonwebtoken');
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 //middleware 
 app.use(cors())
 app.use(express.json());
@@ -29,6 +29,8 @@ async function run() {
     const reviewsCollection = client.db('bistroDb').collection('reviews')
     const usersCollection = client.db('bistroDb').collection('users')
     const cartsCollection = client.db('bistroDb').collection('carts')
+    // Create a new collection for payments
+    const paymentsCollection = client.db('bistroDb').collection('payments');
     // Users related APIs 
 
     //jwt related Api
@@ -177,6 +179,41 @@ async function run() {
         const result=await cartsCollection.deleteOne(query);
         res.send(result);
     })
+
+    // Create a payment intent
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
+      const amount =parseInt(price * 100); // Convert to cents
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+      
+    app.post('/payments', async(req,res)=>{
+      const payment = req.body;
+      const insertResult = await paymentsCollection.insertOne(payment);
+      
+      // Update the cart items to mark them as paid
+      const query = { _id: { $in: payment.cartId.map(id => new ObjectId(id)) } };
+      const updateResult = await cartsCollection.deleteMany(query);
+      
+      res.send({ insertResult, updateResult });
+    });
+   
+    app.get('/payments/:email',vferiyToken, async (req, res) => {
+      const query = { email: req.params.email };
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({message: 'Forbidden access' });
+      }
+      const result = await paymentsCollection.find(query).toArray();
+      res.send(result);
+    });
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
