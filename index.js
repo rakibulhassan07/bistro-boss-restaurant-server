@@ -213,8 +213,78 @@ async function run() {
       const result = await paymentsCollection.find(query).toArray();
       res.send(result);
     });
+    
+    app.get('/admin-stats', vferiyToken, verifyAdmin, async (req, res) => {
+      const usersCount = await usersCollection.estimatedDocumentCount();
+      const productsCount = await menuCollection.estimatedDocumentCount();
+      const ordersCount = await paymentsCollection.estimatedDocumentCount();
+     
 
+      // Calculate total revenue
+       const result = await paymentsCollection.aggregate([
+         {
+           $group: 
+           { _id: null, total: { $sum: "$price" } 
+          } 
+        }
+        ]).toArray();
 
+         const totalRevenue = result.length > 0 ? result[0]?.total : 0;
+
+      res.send({
+        users: usersCount,
+        products: productsCount,
+        orders: ordersCount,
+        revenue: totalRevenue,
+      });
+    })
+
+      app.get('/order-stats', vferiyToken, verifyAdmin, async(req, res) =>{
+      const result = await paymentsCollection.aggregate([
+        {
+          $unwind:'$menuItems'
+        },
+        {
+          $addFields: {
+            menuItemObjectId: { $toObjectId: "$menuItems" }
+          }
+        },
+        {
+          $lookup: {
+            from: 'menu',
+            localField: 'menuItemObjectId',
+            foreignField: '_id',
+            as: 'menuItemDetails'
+          }
+        },
+        {
+          $unwind: '$menuItemDetails'
+        },
+        {
+          $group:{
+            _id: '$menuItemDetails.category',
+            quantity: { $sum: 1 },
+            revenue: { $sum: '$menuItemDetails.price' },   
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            category: '$_id',
+            quantity: '$quantity',
+            revenue: '$revenue'
+          }
+        }
+       
+      ]).toArray();
+
+      res.send(result);
+
+    })
+   
+    
+
+   
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
